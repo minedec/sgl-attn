@@ -483,6 +483,7 @@ if not SKIP_CUDA_BUILD:
     )
     HEAD_DIMENSIONS_FWD = ["all", "diff"]
     HEAD_DIMENSIONS_FWD_SM80 = HEAD_DIMENSIONS_BWD
+    HEAD_DIMENSIONS_FWD_SPARSE = [128]
     SPLIT = [""] + (["_split"] if not DISABLE_SPLIT else [])
     PAGEDKV = [""] + (["_paged"] if not DISABLE_PAGEDKV else [])
     SOFTCAP = [""] + (["_softcap"] if not DISABLE_SOFTCAP else [])
@@ -495,6 +496,8 @@ if not SKIP_CUDA_BUILD:
     sources_fwd_sm90 = [f"instantiations/flash_fwd_hdim{hdim}_{dtype}{paged}{split}{softcap}{packgqa}_sm90.cu"
                         for hdim, dtype, split, paged, softcap, packgqa in itertools.product(HEAD_DIMENSIONS_FWD, DTYPE_FWD_SM90, SPLIT, PAGEDKV, SOFTCAP, PACKGQA)
                         if not (packgqa and (paged or split))]
+    sources_fwd_sparse_sm90 = [f"instantiations/flash_fwd_sparse_hdim{hdim}_{dtype}{causal}_sm90.cu"
+                        for hdim, dtype, causal in itertools.product(HEAD_DIMENSIONS_FWD_SPARSE, DTYPE_FWD_SM80, ["", "_causal"])]
     sources_bwd_sm80 = [f"instantiations/flash_bwd_hdim{hdim}_{dtype}{softcap}_sm80.cu"
                         for hdim, dtype, softcap in itertools.product(HEAD_DIMENSIONS_BWD, DTYPE_BWD, SOFTCAP)]
     sources_bwd_sm90 = [f"instantiations/flash_bwd_hdim{hdim}_{dtype}{softcap}_sm90.cu"
@@ -505,6 +508,7 @@ if not SKIP_CUDA_BUILD:
     sources = (
         ["flash_api.cpp"]
         + (sources_fwd_sm80 if not DISABLE_SM8x else []) + sources_fwd_sm90
+        + sources_fwd_sparse_sm90
         + (sources_bwd_sm80 if not DISABLE_SM8x else []) + sources_bwd_sm90
     )
     if not DISABLE_SPLIT:

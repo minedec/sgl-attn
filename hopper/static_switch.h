@@ -27,6 +27,12 @@
     }                                                                                            \
   }()
 
+#define EVENK_SWITCH BOOL_SWITCH
+
+#define ALIBI_SWITCH BOOL_SWITCH
+
+#define DROPOUT_SWITCH BOOL_SWITCH
+
 #ifdef FLASHATTENTION_DISABLE_LOCAL
   #define CAUSAL_LOCAL_SWITCH(CAUSAL_COND, LOCAL_COND, CAUSAL_CONST_NAME, LOCAL_CONST_NAME, ...) \
     [&] {                                                                                        \

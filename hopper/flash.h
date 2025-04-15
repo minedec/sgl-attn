@@ -7,6 +7,8 @@
 #include <cuda.h>
 #include <vector>
 
+#include <ATen/cuda/CUDAGeneratorImpl.h>
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 struct Qkv_params {
@@ -158,6 +160,23 @@ struct Flash_fwd_params : public Qkv_params {
 
     int arch;
     int num_sm;
+
+    // For sparse attention
+    float scale_softmax_log2;
+    void * __restrict__ p_ptr;
+
+    int h_h_k_ratio; // precompute h / h_k,
+    
+    void * __restrict__ alibi_slopes_ptr;
+    index_t alibi_slopes_batch_stride;
+
+    const int* block_count;
+    const int* block_offset;
+    const int* column_count;
+    const int* column_index;
+    int NUM_ROWS;
+    int NNZ_S;
+    int NNZ_V;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -210,6 +229,8 @@ struct Flash_bwd_params : public Flash_fwd_params {
 
 template <int Arch, typename T, int kHeadDim, int kHeadDimV, bool Split, bool PagedKVNonTMA, bool Has_softcap, bool PackGQA>
 void run_mha_fwd_(Flash_fwd_params &params, cudaStream_t stream);
+template<typename T, int Headdim, bool Is_causal> 
+void run_mha_fwd_sparse_(Flash_fwd_params &params, cudaStream_t stream);
 void prepare_varlen_num_blocks(Flash_fwd_params &params, cudaStream_t stream, bool packgqa, int blockM, int blockN, bool enable_pdl);
 template <int Arch, typename T, int kHeadDim, bool Has_softcap>
 void run_mha_bwd_(Flash_bwd_params &params, cudaStream_t stream);

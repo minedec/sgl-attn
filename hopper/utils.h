@@ -126,6 +126,23 @@ CUTLASS_DEVICE auto convert_layout_acc_rowcol(Layout0 acc_layout) {
     }
 };
 
+// Convert acc_layout from (MMA=4, MMA_M, MMA_N) to (nrow=(2, MMA_M), ncol=(2, MMA_N))
+template<typename Layout>
+__forceinline__ __device__ auto convert_layout_acc_rowcol_fa2(Layout acc_layout) {
+    if constexpr (decltype(rank<0>(acc_layout))::value == 3) {  // SM90
+        static_assert(decltype(size<0, 0>(acc_layout))::value == 2);
+        static_assert(decltype(size<0, 1>(acc_layout))::value == 2);
+        static_assert(decltype(rank(acc_layout))::value == 3);
+        auto l = acc_layout;
+        return make_layout(make_layout(get<0, 1>(l), get<1>(l)), make_layout(get<0, 0>(l), make_layout(get<0, 2>(l), get<2>(l))));
+    } else {  // SM80
+        static_assert(decltype(size<0>(acc_layout))::value == 4);
+        static_assert(decltype(rank(acc_layout))::value == 3);
+        auto l = logical_divide(acc_layout, Shape<_2>{});  // ((2, 2), MMA_M, MMA_N)
+        return make_layout(make_layout(get<0, 1>(l), get<1>(l)), make_layout(get<0, 0>(l), get<2>(l)));
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // For SM80, convert acc_layout from (MMA=4, MMA_M, MMA_N) to ((4, 2), MMA_M, MMA_N / 2)
@@ -170,6 +187,33 @@ CUTLASS_DEVICE auto convert_layout_acc_Aregs(Layout0 acc_layout) {
             return make_layout(make_layout(get<0>(l), get<2, 0>(l)), get<1>(l), get<2, 1>(l));
         }
     }
+};
+
+// Convert acc_layout from (MMA=4, MMA_M, MMA_N) to ((4, 2), MMA_M, MMA_N / 2)
+// if using m16n8k16, or to (4, MMA_M, MMA_N) if using m16n8k8.
+template<typename MMA_traits, typename Layout>
+__forceinline__ __device__ auto convert_layout_acc_Aregs_fa2(Layout acc_layout) {
+    using X = Underscore;
+    if constexpr (decltype(rank<0>(acc_layout))::value == 3) {  // SM90
+        static_assert(decltype(size<0, 0>(acc_layout))::value == 2);
+        static_assert(decltype(size<0, 1>(acc_layout))::value == 2);
+        static_assert(decltype(rank(acc_layout))::value == 3);
+        static_assert(decltype(rank(get<0>(acc_layout)))::value == 3);
+        auto l = logical_divide(get<0>(acc_layout), Shape<X, X, _2>{});  // (2, 2, (2, N / 16)))
+        return make_layout(make_layout(get<0>(l), get<1>(l), get<2, 0>(l)), get<1>(acc_layout), make_layout(get<2, 1>(l), get<2>(acc_layout)));
+    } else {  // SM80
+        static_assert(decltype(size<0>(acc_layout))::value == 4);
+        static_assert(decltype(rank(acc_layout))::value == 3);
+        constexpr int mma_shape_K = get<2>(typename MMA_traits::Shape_MNK{});
+        static_assert(mma_shape_K == 8 || mma_shape_K == 16);
+        if constexpr (mma_shape_K == 8) {
+            return acc_layout;
+        } else {
+            auto l = logical_divide(acc_layout, Shape<X, X, _2>{});  // (4, MMA_M, (2, MMA_N / 2)))
+            return make_layout(make_layout(get<0>(l), get<2, 0>(l)), get<1>(l), get<2, 1>(l));
+        }
+    }
+    // end
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
